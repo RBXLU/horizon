@@ -641,6 +641,9 @@ pub struct HudBatch {
     pub glint_alpha: f32,
     /// Screen's first vertex: the preceding HUD is part of its blurred background.
     pub blur_at: u32,
+    /// The vertex after the last screen backdrop drawn (`mark_backdrop`): menu
+    /// animations fade what comes before it and move what follows.
+    pub backdrop_end: u32,
 }
 /// How a run of HUD vertices blends and tests depth.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -692,7 +695,12 @@ impl HudBatch {
             end_portal: EndPortalFill::default(),
             glint_alpha: 0.75,
             blur_at: 0,
+            backdrop_end: 0,
         }
+    }
+    /// A screen's dimmed background ends here (`screen_anim`).
+    pub fn mark_backdrop(&mut self) {
+        self.backdrop_end = self.vertices.len() as u32;
     }
     /// Draw the vertices added since `start` with the inverting blend.
     pub fn invert_since(&mut self, start: usize) {
@@ -2008,6 +2016,7 @@ mod tests {
                 end_portal: EndPortalFill::default(),
                 glint_alpha: 0.75,
                 blur_at: 0,
+                backdrop_end: 0,
             };
             for (image_width, image_height) in [(195, 136), (176, 166), (176, 222)] {
                 assert_eq!(

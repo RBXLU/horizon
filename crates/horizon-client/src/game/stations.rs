@@ -1154,14 +1154,7 @@ impl Game<'_> {
         let mut tooltip_stack: Option<ItemStack> = None;
         {
             let atlas = &self.gui.atlas;
-            batch.fill(
-                atlas,
-                0.0,
-                0.0,
-                batch.width,
-                batch.height,
-                rgba(16, 16, 16, 160),
-            );
+            horizon_client::ui::container_backdrop(batch, atlas);
         }
         let inventory_label = self.translate("container.inventory", "Inventory");
         if brewing {

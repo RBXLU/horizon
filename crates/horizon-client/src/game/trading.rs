@@ -567,14 +567,7 @@ impl Game<'_> {
         let offers = m.session.offers.clone();
         let costs: Vec<ItemStack> = offers.iter().map(|o| o.cost_a(self.res.items())).collect();
         let atlas = &self.gui.atlas;
-        batch.fill(
-            atlas,
-            0.0,
-            0.0,
-            batch.width,
-            batch.height,
-            rgba(16, 16, 16, 160),
-        );
+        horizon_client::ui::container_backdrop(batch, atlas);
         if let Some(mut r) = atlas.sprites.get("gui/container/villager").copied() {
             let (du, dv) = ((r.u1 - r.u0) / r.w as f32, (r.v1 - r.v0) / r.h as f32);
             r.u1 = r.u0 + 276.0 * du;

@@ -141,6 +141,7 @@ pub mod recipe_book_screen;
 pub mod reconnect;
 pub mod save;
 pub mod scoreboard_cmd;
+pub mod screen_anim;
 pub mod screen_draw;
 pub mod screen_effects;
 pub mod screen_layout;

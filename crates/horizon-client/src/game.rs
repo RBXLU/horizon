@@ -104,6 +104,7 @@ mod loom;
 mod mace;
 mod machines;
 mod maps;
+mod menu_anim;
 mod minecarts;
 mod mob_blocks;
 mod mob_gear;
@@ -1499,6 +1500,8 @@ struct Game<'a> {
     pause: bool,
     debug: bool,
     screen: Screen,
+    /// The screen the last frame drew and when it opened (game/menu_anim.rs).
+    menu_anim: (Screen, Instant),
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
     /// CPU geometry storage retained across frames, including empty/title frames.
@@ -6150,6 +6153,8 @@ impl Game<'_> {
         } else {
             self.screen
         };
+        let screen_start = batch.vertices.len();
+        batch.backdrop_end = screen_start as u32;
         match screen {
             Screen::Paused if self.pause_menu => self.draw_pause_menu(&mut batch),
             // PauseScreen(false): only its title, at the top.
@@ -6186,6 +6191,7 @@ impl Game<'_> {
             Screen::Mod => self.draw_mod_screen(&mut batch),
             Screen::Playing | Screen::Options | Screen::Win => {}
         }
+        self.animate_menu(&mut batch, screen, screen_start);
         self.draw_saving_indicator(&mut batch);
         // ToastManager.extractRenderState: F1 hides the toasts too.
         self.draw_toasts(&mut batch, !show_hud);
@@ -6417,14 +6423,7 @@ impl Game<'_> {
         let (ox, oy) = self.inventory_origin(batch);
         {
             let atlas = &self.gui.atlas;
-            batch.fill(
-                atlas,
-                0.0,
-                0.0,
-                batch.width,
-                batch.height,
-                rgba(16, 16, 16, 160),
-            );
+            horizon_client::ui::container_backdrop(batch, atlas);
             let part = |batch: &mut HudBatch,
                         name: &str,
                         sx: f32,
@@ -11075,14 +11074,7 @@ impl Game<'_> {
                 t.column + 1
             )
         };
-        batch.fill(
-            &self.gui.atlas,
-            0.0,
-            0.0,
-            batch.width,
-            batch.height,
-            rgba(16, 16, 16, 160),
-        );
+        horizon_client::ui::container_backdrop(batch, &self.gui.atlas);
         // Unselected tabs behind the panel, then the panel, then the selected tab.
         for (i, t) in tabs.iter().enumerate() {
             if i != selected {
@@ -13731,6 +13723,7 @@ impl<'a> Game<'a> {
             pack_ids: None,
             health_hud: hud_layout::HealthHud::default(),
             started: now,
+            menu_anim: (Screen::Playing, now),
             spectator_gui: Default::default(),
             previous: now,
             last_input: now,

@@ -1,7 +1,7 @@
 # Horizon extras
 
 Optional conveniences built into the client: fullbright, dynamic lights, auto-reconnect,
-Mouse Tweaks-style inventory controls and inventory sorting. **Every one is off by default**: a fresh
+Mouse Tweaks-style inventory controls, inventory sorting and menu animations. **Every one is off by default**: a fresh
 install looks and behaves exactly like vanilla 26.3, and turning an extra off
 again restores vanilla's behaviour completely.
 
@@ -17,6 +17,7 @@ again restores vanilla's behaviour completely.
 | Reconnect policy and backoff | `crates/horizon-client/src/reconnect.rs` |
 | Game glue (input hooks, per-frame update) | `crates/horizon-client/src/game/extras.rs` |
 | Mouse Tweaks-style controls, sort buttons | `crates/horizon-client/src/game/tweaks.rs` |
+| Menu animations: curves and the vertex pass | `crates/horizon-client/src/screen_anim.rs` (pure, unit tested), `game/menu_anim.rs` |
 | Sort order and its clicks | `crates/horizon-client/src/inv_sort.rs` (pure, unit tested) |
 | The settings page | `options_ui.rs` (`Page::Extras`): **Options → Horizon Settings... → Extras...** |
 
@@ -128,6 +129,22 @@ and the container screen tests are unchanged).
 - Done with ordinary left clicks planned by `inv_sort::plan`, so a vanilla
   server accepts it; a unit test replays the planned clicks through the menu
   engine on random chests.
+
+### Menu animations (`menuAnimations`, default off)
+- A screen opened in game slides up into place while its dimmed backdrop fades
+  in, as the ReAnimated mod does on Java (by its author, MIT; the curves and
+  timings are ReAnimated's defaults, the code is new). Menus rise 16 GUI pixels
+  over 0.3 s on an ease-out curve, the pause menu 12 over 0.2 s, the inventory
+  and containers 30 over 0.3 s with a small overshoot.
+- Not animated: the chat, the death screen, the game mode switcher and the
+  title, options and loading screens, which are drawn apart from the in-game
+  screens (`Game::hud_layers`).
+- The screens draw exactly as vanilla's; `screen_anim::apply` then moves the
+  vertices drawn after the screen's backdrop (`HudBatch::mark_backdrop`, set by
+  `ui::menu_background` and `ui::container_backdrop`) and fades the backdrop's.
+  Clicks land where the screen rests, as with ReAnimated.
+- Off, and once a screen is at rest: one comparison per frame, no vertex is
+  touched.
 
 ## Shared rules
 

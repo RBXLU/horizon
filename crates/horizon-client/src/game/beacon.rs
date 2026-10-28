@@ -410,14 +410,7 @@ impl Game<'_> {
         let sel = self.station.as_ref().map_or([None; 2], |s| s.beacon);
         let paid = self.station.as_ref().is_some_and(|s| s.inputs[0].is_some());
         let atlas = &self.gui.atlas;
-        batch.fill(
-            atlas,
-            0.0,
-            0.0,
-            batch.width,
-            batch.height,
-            rgba(16, 16, 16, 160),
-        );
+        horizon_client::ui::container_backdrop(batch, atlas);
         if let Some(mut r) = atlas.sprites.get("gui/container/beacon").copied() {
             let (du, dv) = ((r.u1 - r.u0) / r.w as f32, (r.v1 - r.v0) / r.h as f32);
             r.u1 = r.u0 + 230.0 * du;

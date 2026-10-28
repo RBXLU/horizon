@@ -416,6 +416,14 @@ pub fn menu_background(
     } else {
         batch.fill(atlas, x, y, w, h, rgba(0, 0, 0, 160));
     }
+    batch.mark_backdrop();
+}
+/// AbstractContainerScreen's background in a world: the translucent fill over
+/// the whole screen.
+pub fn container_backdrop(batch: &mut HudBatch, atlas: &HudAtlas) {
+    let (w, h) = (batch.width, batch.height);
+    batch.fill(atlas, 0.0, 0.0, w, h, rgba(16, 16, 16, 160));
+    batch.mark_backdrop();
 }
 /// Header and footer separators of list screens.
 pub fn separators(

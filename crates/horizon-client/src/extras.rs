@@ -103,6 +103,8 @@ pub struct Extras {
     pub mouse_tweaks_wheel: bool,
     /// Sort buttons on the inventory and chest-like containers.
     pub sort: bool,
+    /// Screens slide in over a fading backdrop (`screen_anim`).
+    pub menu_animations: bool,
     /// A vanilla key name: sorts the part under the cursor.
     pub sort_key: String,
     /// No AI: every AI feature hidden and off (`horizon_core::no_ai`; the launcher writes it too).
@@ -140,6 +142,7 @@ impl Default for Extras {
             mouse_tweaks: false,
             mouse_tweaks_wheel: true,
             sort: false,
+            menu_animations: false,
             sort_key: "key.keyboard.unknown".into(),
             no_ai: false,
             agent_control: false,
@@ -214,6 +217,7 @@ impl Extras {
                 "mouseTweaks" => e.mouse_tweaks = flag(e.mouse_tweaks),
                 "mouseTweaksWheel" => e.mouse_tweaks_wheel = flag(e.mouse_tweaks_wheel),
                 "sort" => e.sort = flag(e.sort),
+                "menuAnimations" => e.menu_animations = flag(e.menu_animations),
                 "sortKey" if value.starts_with("key.") => e.sort_key = value.to_owned(),
                 horizon_core::no_ai::KEY => e.no_ai = flag(e.no_ai),
                 "agentControl" => e.agent_control = flag(e.agent_control),
@@ -225,7 +229,7 @@ impl Extras {
     }
     pub fn serialize(&self) -> String {
         format!(
-            "fullbright:{}\ndynamicLights:{}\nzoom:{}\nzoomKey:{}\nzoomLevel:{}\nzoomSmooth:{}\nzoomSensitivity:{}\nfps:{}\nfpsCorner:{}\nfpsLows:{}\nkeystrokes:{}\nkeystrokesCorner:{}\nkeystrokesCps:{}\nmovedToMods:{}\nminimap:{}\nminimapCorner:{}\nminimapSize:{}\nminimapShape:{}\nminimapZoom:{}\nminimapRotate:{}\nautoReconnect:{}\nmouseTweaks:{}\nmouseTweaksWheel:{}\nsort:{}\nsortKey:{}\n{}:{}\nagentControl:{}\ndiscordPresence:{}\n",
+            "fullbright:{}\ndynamicLights:{}\nzoom:{}\nzoomKey:{}\nzoomLevel:{}\nzoomSmooth:{}\nzoomSensitivity:{}\nfps:{}\nfpsCorner:{}\nfpsLows:{}\nkeystrokes:{}\nkeystrokesCorner:{}\nkeystrokesCps:{}\nmovedToMods:{}\nminimap:{}\nminimapCorner:{}\nminimapSize:{}\nminimapShape:{}\nminimapZoom:{}\nminimapRotate:{}\nautoReconnect:{}\nmouseTweaks:{}\nmouseTweaksWheel:{}\nsort:{}\nsortKey:{}\nmenuAnimations:{}\n{}:{}\nagentControl:{}\ndiscordPresence:{}\n",
             bool_text(self.fullbright),
             bool_text(self.dynamic_lights),
             bool_text(self.zoom),
@@ -255,6 +259,7 @@ impl Extras {
             bool_text(self.mouse_tweaks_wheel),
             bool_text(self.sort),
             self.sort_key,
+            bool_text(self.menu_animations),
             horizon_core::no_ai::KEY,
             bool_text(self.no_ai),
             bool_text(self.agent_control),
@@ -383,6 +388,7 @@ pub enum Item {
     MouseTweaksWheel,
     Sort,
     SortKey,
+    MenuAnimations,
     /// Not on the Extras page: Horizon Settings shows No AI, its AI Agent page Agent Control.
     NoAi,
     AgentControl,
@@ -401,6 +407,8 @@ pub fn rows() -> Vec<Result<Item, &'static str>> {
         Ok(MouseTweaksWheel),
         Ok(Sort),
         Ok(SortKey),
+        Err("Menus"),
+        Ok(MenuAnimations),
         Err("Multiplayer"),
         Ok(AutoReconnect),
     ]
@@ -415,6 +423,7 @@ impl Item {
             Item::MouseTweaksWheel => "Scroll wheel moves items",
             Item::Sort => "Sort buttons",
             Item::SortKey => "Sort key",
+            Item::MenuAnimations => "Menu animations",
             Item::NoAi => "No AI",
             Item::AgentControl => "Agent Control",
             Item::DiscordPresence => "Discord Rich Presence",
@@ -426,8 +435,8 @@ impl Item {
         Some(match self {
             MouseTweaksWheel => MouseTweaks,
             SortKey => Sort,
-            Fullbright | DynamicLights | MouseTweaks | Sort | AutoReconnect | NoAi
-            | AgentControl | DiscordPresence => {
+            Fullbright | DynamicLights | MouseTweaks | Sort | MenuAnimations | AutoReconnect
+            | NoAi | AgentControl | DiscordPresence => {
                 return None;
             }
         })
@@ -454,6 +463,9 @@ impl Item {
             Item::SortKey => {
                 "Sorts the part under the cursor. Click, then press a key; Escape unbinds it."
             }
+            Item::MenuAnimations => {
+                "Menus and the inventory slide into place while the background fades in, as the ReAnimated mod does."
+            }
             Item::NoAi => {
                 "Hides and turns off every AI feature: agent control, horizon-ctl and the MCP servers. The launcher's switch too."
             }
@@ -471,7 +483,9 @@ impl Item {
         match self {
             Item::Fullbright => Some(Cost::None),
             Item::DynamicLights => Some(Cost::Low),
-            Item::AutoReconnect | Item::MouseTweaks | Item::Sort => Some(Cost::None),
+            Item::AutoReconnect | Item::MouseTweaks | Item::Sort | Item::MenuAnimations => {
+                Some(Cost::None)
+            }
             _ => None,
         }
     }
@@ -484,6 +498,7 @@ impl Item {
             Item::MouseTweaks => e.mouse_tweaks,
             Item::MouseTweaksWheel => e.mouse_tweaks_wheel,
             Item::Sort => e.sort,
+            Item::MenuAnimations => e.menu_animations,
             Item::NoAi => e.no_ai,
             Item::AgentControl => e.agent_control,
             Item::DiscordPresence => e.discord_presence,
@@ -510,6 +525,7 @@ impl Item {
             Item::MouseTweaks => e.mouse_tweaks = !e.mouse_tweaks,
             Item::MouseTweaksWheel => e.mouse_tweaks_wheel = !e.mouse_tweaks_wheel,
             Item::Sort => e.sort = !e.sort,
+            Item::MenuAnimations => e.menu_animations = !e.menu_animations,
             Item::NoAi => e.no_ai = !e.no_ai,
             Item::AgentControl => e.agent_control = !e.agent_control,
             Item::DiscordPresence => e.discord_presence = !e.discord_presence,
@@ -534,7 +550,7 @@ mod tests {
         let d = Extras::default();
         assert!(!d.fullbright && !d.dynamic_lights);
         assert!(!d.zoom && !d.fps && !d.keystrokes && !d.minimap && !d.auto_reconnect);
-        assert!(!d.mouse_tweaks && !d.sort);
+        assert!(!d.mouse_tweaks && !d.sort && !d.menu_animations);
         assert!(d.discord_presence);
         assert_eq!(Extras::parse(""), d);
         assert_eq!(Extras::parse(&d.serialize()), d);
@@ -543,6 +559,8 @@ mod tests {
         assert_eq!(Item::Fullbright.switch(&e), Some(true));
         Item::DynamicLights.cycle(&mut e, false);
         assert_eq!(Item::DynamicLights.switch(&e), Some(true));
+        Item::MenuAnimations.cycle(&mut e, false);
+        assert_eq!(Item::MenuAnimations.switch(&e), Some(true));
         assert_eq!(Extras::parse(&e.serialize()), e);
         e.zoom = true;
         e.zoom_key = "key.keyboard.c".into();
