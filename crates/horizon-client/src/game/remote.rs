@@ -4665,6 +4665,9 @@ impl Game<'_> {
             if reacts {
                 self.predict_use(&changes, seq);
                 self.open_command_block_if_editable((hit.pos[0], hit.pos[1], hit.pos[2]));
+                // Minecraft.startUseItem: a block's SUCCESS swings this hand,
+                // whatever it holds (a door opened with a trident or bare hand).
+                self.with_hand(hand, Game::swing_arm);
             } else if self.predict_campfire_douse(hit.pos, held.as_ref(), seq) {
                 // CampfireBlock.useItemOn succeeded: this hand swings and the
                 // click ends, so a shield in the other hand is not raised.
@@ -4703,7 +4706,7 @@ impl Game<'_> {
                     // server's resend of the target it refused is no placement.
                     r.placing = None;
                 }
-                if reacts || placed.is_some() {
+                if !reacts && placed.is_some() {
                     self.with_hand(hand, Game::swing_arm);
                 }
                 // BlockItem.place returns FAIL when placement is rejected:
