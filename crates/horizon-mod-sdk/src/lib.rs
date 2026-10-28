@@ -184,7 +184,7 @@ macro_rules! export_mod {
 pub mod server {
     wit_bindgen::generate!({
         path: "wit",
-        world: "horizon-server-mod",
+        world: "horizon-server-items-mod",
         pub_export_macro: true,
         export_macro_name: "__export_horizon_server_mod",
         default_bindings_module: "horizon_mod_sdk::server",
@@ -197,6 +197,9 @@ pub mod server {
     pub use exports::horizon::mods::server_events::{
         Argument, ArgumentKind, ArgumentValue, BlockPos, Guest as __Guest, Registration,
         ServerCommand,
+    };
+    pub use exports::horizon::mods::server_item_events::{
+        BlockHit, Face, Guest as __ItemsGuest, Hand,
     };
     pub use horizon::mods::players::{self, GameMode, Player};
     pub use horizon::mods::world::{self, BlockChange};
@@ -228,6 +231,21 @@ pub mod server {
         /// When [`Registration::blocks`] is set: `state` is what was there.
         fn block_broken(&mut self, _player: &Player, _pos: BlockPos, _state: &str) {}
         fn block_placed(&mut self, _player: &Player, _pos: BlockPos, _state: &str) {}
+        /// The item ids whose uses the mod hears ([`item_used`](Self::item_used)),
+        /// at most 64; asked once, after [`init`](Self::init).
+        fn items(&self) -> Vec<String> {
+            Vec::new()
+        }
+        /// `player` right-clicked with `item` from `hand`: on `target`'s
+        /// face, or in the air (`None`). The game has used the item as usual.
+        fn item_used(
+            &mut self,
+            _player: &Player,
+            _hand: Hand,
+            _item: &str,
+            _target: Option<BlockHit>,
+        ) {
+        }
     }
 
     impl Registration {
@@ -390,7 +408,9 @@ macro_rules! export_server_mod {
     ($t:ty) => {
         const _: () = {
             use ::std::cell::RefCell;
-            use $crate::server::{Args, ArgumentValue, BlockPos, Player, Registration, ServerMod};
+            use $crate::server::{
+                Args, ArgumentValue, BlockHit, BlockPos, Hand, Player, Registration, ServerMod,
+            };
             ::std::thread_local! {
                 static STATE: RefCell<Option<$t>> = const { RefCell::new(None) };
             }
@@ -436,6 +456,20 @@ macro_rules! export_server_mod {
                 }
                 fn block_placed(player: Player, pos: BlockPos, state: String) {
                     with(|m| m.block_placed(&player, pos, &state))
+                }
+            }
+            impl $crate::server::__ItemsGuest for Export {
+                fn items() -> Vec<String> {
+                    let mut out = Vec::new();
+                    STATE.with(|s| {
+                        if let Some(m) = s.borrow().as_ref() {
+                            out = m.items();
+                        }
+                    });
+                    out
+                }
+                fn item_used(player: Player, hand: Hand, item: String, target: Option<BlockHit>) {
+                    with(|m| m.item_used(&player, hand, &item, target))
                 }
             }
             #[cfg(target_arch = "wasm32")]

@@ -29,6 +29,14 @@ pub(super) enum ModEvent {
         state: String,
         placed: bool,
     },
+    /// A right click with an item a server mod hears (`server-item-events`).
+    ItemUsed {
+        who: Who,
+        off_hand: bool,
+        item: String,
+        /// The block clicked and its face, as a unit vector; none in the air.
+        target: Option<([i32; 3], [i32; 3])>,
+    },
 }
 
 #[cfg(not(feature = "mods"))]
@@ -36,6 +44,12 @@ impl Game<'_> {
     pub(super) fn tick_server_mods(&mut self) {}
     pub(super) fn mod_block_event(&mut self, _pos: [i32; 3], _state: BlockStateId, _placed: bool) {}
     pub(super) fn mod_player_chat(&mut self, _who: Who, _text: &str) {}
+    pub(super) fn mod_item_used(
+        &mut self,
+        _hand: horizon_client::first_person::Hand,
+        _target: Option<([i32; 3], [i32; 3])>,
+    ) {
+    }
     pub(super) fn local_server_mod_command(&mut self, _line: &str) -> bool {
         false
     }
@@ -60,7 +74,8 @@ mod run {
         text::{self, Text},
     };
     use horizon_mods::{
-        ArgumentKind, BlockPos, GameMode, Output, ServerCommand, ServerPlayer, WorldView,
+        ArgumentKind, BlockPos, GameMode, ItemBlockHit, ItemFace, ItemHand, Output, ServerCommand,
+        ServerPlayer, WorldView,
     };
     use horizon_protocol::packets::play::{self, Clientbound as C};
     use horizon_world::registry::{BlockRegistry, BlockStateId};
@@ -306,6 +321,26 @@ mod run {
                             self.mods.mods.block_broken(&p, pos, &state);
                         }
                     }
+                    ModEvent::ItemUsed {
+                        who: w,
+                        off_hand,
+                        item,
+                        target,
+                    } => {
+                        let Some(p) = who(&w) else { continue };
+                        let hand = if off_hand {
+                            ItemHand::Off
+                        } else {
+                            ItemHand::Main
+                        };
+                        let target = target.map(|(pos, face)| ItemBlockHit {
+                            x: pos[0],
+                            y: pos[1],
+                            z: pos[2],
+                            face: item_face(face),
+                        });
+                        self.mods.mods.item_used(&p, hand, &item, target);
+                    }
                 }
             }
             self.mods.mods.server_tick(self.ticks);
@@ -416,6 +451,32 @@ mod run {
                 pos,
                 state,
                 placed,
+            });
+        }
+
+        /// The acting player right-clicks with what `hand` holds, on
+        /// `target` (a block and its face) or in the air: heard when a server
+        /// mod names that item.
+        pub(in crate::game) fn mod_item_used(
+            &mut self,
+            hand: horizon_client::first_person::Hand,
+            target: Option<([i32; 3], [i32; 3])>,
+        ) {
+            if !self.hears_players() {
+                return;
+            }
+            let Some(item) = self.with_hand(hand, |g| g.held().map(|s| s.item.to_string())) else {
+                return;
+            };
+            if !self.mods.mods.hears_item(&item) {
+                return;
+            }
+            let who = self.lan_acting.map_or(Who::Local, Who::Conn);
+            self.mods.events.push(ModEvent::ItemUsed {
+                who,
+                off_hand: hand == horizon_client::first_person::Hand::Off,
+                item,
+                target,
             });
         }
 
@@ -571,6 +632,18 @@ mod run {
                 }
                 _ => {}
             }
+        }
+    }
+
+    /// A face as `server-item-events` names it, from its unit vector.
+    fn item_face(face: [i32; 3]) -> ItemFace {
+        match face {
+            [0, -1, 0] => ItemFace::Down,
+            [0, 1, 0] => ItemFace::Up,
+            [0, 0, -1] => ItemFace::North,
+            [0, 0, 1] => ItemFace::South,
+            [-1, 0, 0] => ItemFace::West,
+            _ => ItemFace::East,
         }
     }
 }

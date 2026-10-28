@@ -8,7 +8,8 @@
 //! test written in TOML, `tests/<name>.toml` in the mod's folder: steps, each
 //! saying what happens and what the mod must have shown by then.
 use crate::{
-    BlockPos, Clock, Corner, GameMode, Mods, Output, Panel, Player, ServerPlayer, Snapshot, Status,
+    BlockPos, Clock, Corner, GameMode, ItemBlockHit, ItemFace, ItemHand, Mods, Output, Panel, Player,
+    ServerPlayer, Snapshot, Status,
 };
 use serde::Deserialize;
 use std::{
@@ -247,6 +248,18 @@ impl TestGame {
         }
     }
 
+    /// `player` uses `item` from `hand` on `target` or in the air.
+    pub fn item_used(
+        &mut self,
+        player: &ServerPlayer,
+        hand: ItemHand,
+        item: &str,
+        target: Option<ItemBlockHit>,
+    ) {
+        self.snapshot();
+        self.mods.item_used(player, hand, item, target);
+    }
+
     /// The scratch copy the mod runs from; its `storage` is beside it.
     pub fn hmod(&self) -> &Path {
         &self.hmod
@@ -353,6 +366,45 @@ pub struct BlockSet {
     state: String,
 }
 
+/// A right click with an item (`server-item-events`): on a block's face when
+/// `x`, `y` and `z` are given, else in the air.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct UseSet {
+    item: String,
+    /// `main` (the default) or `off`.
+    hand: Option<String>,
+    x: Option<i32>,
+    y: Option<i32>,
+    z: Option<i32>,
+    /// `down`, `up` (the default), `north`, `south`, `west` or `east`.
+    face: Option<String>,
+}
+impl UseSet {
+    fn hand(&self) -> Result<ItemHand, String> {
+        match self.hand.as_deref() {
+            None | Some("main") => Ok(ItemHand::Main),
+            Some("off") => Ok(ItemHand::Off),
+            Some(other) => Err(format!("hand {other:?}: main or off")),
+        }
+    }
+    fn target(&self) -> Result<Option<ItemBlockHit>, String> {
+        let (Some(x), Some(y), Some(z)) = (self.x, self.y, self.z) else {
+            return Ok(None);
+        };
+        let face = match self.face.as_deref() {
+            Some("down") => ItemFace::Down,
+            None | Some("up") => ItemFace::Up,
+            Some("north") => ItemFace::North,
+            Some("south") => ItemFace::South,
+            Some("west") => ItemFace::West,
+            Some("east") => ItemFace::East,
+            Some(other) => return Err(format!("face {other:?}: down, up, north, south, west or east")),
+        };
+        Ok(Some(ItemBlockHit { x, y, z, face }))
+    }
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct ClockSet {
@@ -362,10 +414,10 @@ pub struct ClockSet {
 
 /// One step. Its parts happen in this order: `reload`, `title-screen`,
 /// `blocks`, `join`, `player`, `clock`, `ticks`, `frames`, `chat`, `command`,
-/// `break`, `place`, `leave`; then the blocks the mod set are made, and
+/// `break`, `place`, `use`, `leave`; then the blocks the mod set are made, and
 /// `expect` is checked against what the mod showed and changed during the
-/// step. For a server mod, `player`, `chat`, `command`, `break`
-/// and `place` are the doing of the player named by `as`, or of the first
+/// step. For a server mod, `player`, `chat`, `command`, `break`,
+/// `place` and `use` are the doing of the player named by `as`, or of the first
 /// player on.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
@@ -391,6 +443,9 @@ pub struct Step {
     #[serde(rename = "break")]
     broken: Option<BlockSet>,
     place: Option<BlockSet>,
+    /// Server mods: the player uses an item, after `place`.
+    #[serde(rename = "use")]
+    used: Option<UseSet>,
     /// Blocks of the Overworld before the rest of the step (capability
     /// `world`); every other block is air.
     #[serde(default)]
@@ -507,6 +562,14 @@ impl Step {
                 parts.push(format!("{what} {} at {} {} {}", b.state, b.x, b.y, b.z));
             }
         }
+        if let Some(u) = &self.used {
+            match (u.x, u.y, u.z) {
+                (Some(x), Some(y), Some(z)) => {
+                    parts.push(format!("uses {} on {x} {y} {z}", u.item))
+                }
+                _ => parts.push(format!("uses {}", u.item)),
+            }
+        }
         if let Some(name) = &self.leave {
             parts.push(format!("{name} leaves"));
         }
@@ -587,6 +650,9 @@ impl Step {
                 };
                 game.block(p, pos, &b.state, placed);
             }
+        }
+        if let (Some(u), Some(p)) = (&self.used, &who) {
+            game.item_used(p, u.hand()?, &u.item, u.target()?);
         }
         if let Some(name) = &self.leave
             && !game.leave(name)

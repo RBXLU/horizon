@@ -1,10 +1,15 @@
 //! Example Horizon server mod (`docs/mods.md`, "Server mods") with
 //! capability `world` and typed commands: `/beacon [height]` lights a
 //! pillar of glowstone two blocks east of the player, `/ground [pos]` reads
-//! the block under their feet (or at `pos`) and its biome.
+//! the block under their feet (or at `pos`) and its biome. A blaze rod used
+//! on a block lights a pillar on it (`server-item-events`).
 use horizon_mod_sdk::server::{
-    Args, Argument, BlockChange, Player, Registration, ServerMod, players, world,
+    Args, Argument, BlockChange, BlockHit, Face, Hand, Player, Registration, ServerMod, players,
+    world,
 };
+
+/// The item that lights a pillar where it is used.
+const WAND: &str = "minecraft:blaze_rod";
 
 /// How tall `/beacon` builds when no height is given.
 const HEIGHT: i32 = 4;
@@ -74,6 +79,34 @@ impl ServerMod for Beacons {
             return Ok(Some(format!("{bx} {by} {bz} is {block} in {biome}")));
         }
         Ok(Some(format!("You are standing on {block} in {biome}")))
+    }
+
+    fn items(&self) -> Vec<String> {
+        vec![WAND.into()]
+    }
+
+    fn item_used(&mut self, player: &Player, _hand: Hand, item: &str, target: Option<BlockHit>) {
+        // In the air it does nothing; on a block, the pillar starts beside the face.
+        let Some(hit) = target.filter(|_| item == WAND) else {
+            return;
+        };
+        let (dx, dy, dz) = match hit.face {
+            Face::Down => (0, -1, 0),
+            Face::Up => (0, 1, 0),
+            Face::North => (0, 0, -1),
+            Face::South => (0, 0, 1),
+            Face::West => (-1, 0, 0),
+            Face::East => (1, 0, 0),
+        };
+        let blocks: Vec<BlockChange> = (0..HEIGHT)
+            .map(|i| BlockChange {
+                x: hit.x + dx,
+                y: hit.y + dy + i,
+                z: hit.z + dz,
+                state: "minecraft:glowstone".into(),
+            })
+            .collect();
+        let _ = world::set_blocks(&player.dimension, &blocks);
     }
 }
 

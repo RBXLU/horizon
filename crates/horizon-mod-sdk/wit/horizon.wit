@@ -783,6 +783,43 @@ interface server-events {
     block-placed: func(player: player, pos: block-pos, state: string);
 }
 
+/// What the server calls in a server mod when a player uses one of the items
+/// it names (manifest `api = "0.3"`, experimental): a second export, so
+/// server mods built before it still load and simply hear no item uses.
+interface server-item-events {
+    use players.{player};
+
+    enum hand {
+        main,
+        off,
+    }
+    /// The face of a block, as vanilla's `Direction`.
+    enum face {
+        down,
+        up,
+        north,
+        south,
+        west,
+        east,
+    }
+    /// The block a use clicked, and its face.
+    record block-hit {
+        x: s32,
+        y: s32,
+        z: s32,
+        face: face,
+    }
+    /// Once, after `server-events.init`: the item ids (`minecraft:stick`,
+    /// `<mod>:<path>`) whose uses the mod hears, at most 64. None: it hears
+    /// none, and `item-used` is never called.
+    items: func() -> list<string>;
+    /// `player` used `item` from `hand` on `target`, a block face, or in the
+    /// air (none): a right click, as the server got it (one per hand the
+    /// click tried). The game has used the item as usual by then; the mod
+    /// reacts, through capability `world` for instance.
+    item-used: func(player: player, hand: hand, item: string, target: option<block-hit>);
+}
+
 /// A client mod: runs in the player's game.
 world horizon-mod {
     import log;
@@ -803,6 +840,19 @@ world horizon-server-mod {
     import players;
     import %world;
     export server-events;
+}
+
+/// A server mod that hears item uses: the SDK builds every server mod against
+/// this world. Mods built for `horizon-server-mod` alone still load.
+world horizon-server-items-mod {
+    include horizon-server-mod;
+    export server-item-events;
+}
+
+/// The game's side of `horizon-server-items-mod` beyond `horizon-server-mod`.
+world server-items-host {
+    import players;
+    export server-item-events;
 }
 
 /// A mod with widgets (capability `ui`): the SDK builds every mod against

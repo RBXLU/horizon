@@ -33,6 +33,23 @@ mod server_bindings {
         },
     });
 }
+/// Server mods' item uses (`server-item-events`): a second export, so server
+/// mods built before it still instantiate as `horizon-server-mod`.
+mod items_bindings {
+    wasmtime::component::bindgen!({
+        path: "../horizon-mod-sdk/wit",
+        world: "server-items-host",
+        with: {
+            "horizon:mods/players": super::server_bindings::horizon::mods::players,
+        },
+    });
+}
+use items_bindings::ServerItemsHost;
+pub use items_bindings::exports::horizon::mods::server_item_events::{
+    BlockHit as ItemBlockHit, Face as ItemFace, Hand as ItemHand,
+};
+/// Item ids a server mod may hear used.
+const ITEMS_HEARD: usize = 64;
 /// Capability `ui`'s world beyond `horizon-mod` (docs/mods.md): a second
 /// world, so mods built before it (no `ui-events` export) still instantiate
 /// as `horizon-mod` and simply hear nothing of their widgets.
@@ -313,6 +330,9 @@ struct Running {
     /// The mod's `ui-events` export; none for a mod built before `ui`, or a
     /// server mod.
     ui: Option<UiHost>,
+    /// A server mod's `server-item-events` export and the items it hears;
+    /// none for a mod built before it, one that hears no item, or a client mod.
+    items: Option<(ServerItemsHost, Vec<String>)>,
     hooks: Hooks,
     /// It imports `game.raycast`.
     raycasts: bool,
@@ -635,13 +655,33 @@ impl Mods {
         let instance = linker
             .instantiate(&mut store, &component)
             .map_err(|e| reason(&e))?;
-        let (mut hooks, ui) = if server {
+        let (mut hooks, ui, items) = if server {
             let exports = HorizonServerMod::new(&mut store, &instance).map_err(|e| reason(&e))?;
             let r = exports
                 .horizon_mods_server_events()
                 .call_init(&mut store)
                 .map_err(|e| reason(&e))??;
-            (Hooks::Server(exports, r), None)
+            // `server-item-events` is a mod built since its; older mods have
+            // no export and hear no item uses.
+            let items = match ServerItemsHost::new(&mut store, &instance) {
+                Ok(host) => {
+                    let mut ids = host
+                        .horizon_mods_server_item_events()
+                        .call_items(&mut store)
+                        .map_err(|e| reason(&e))?;
+                    ids.sort();
+                    ids.dedup();
+                    if ids.len() > ITEMS_HEARD {
+                        return Err(format!(
+                            "hears {} items: at most {ITEMS_HEARD}",
+                            ids.len()
+                        ));
+                    }
+                    (!ids.is_empty()).then_some((host, ids))
+                }
+                Err(_) => None,
+            };
+            (Hooks::Server(exports, r), None, items)
         } else {
             let exports = HorizonMod::new(&mut store, &instance).map_err(|e| reason(&e))?;
             // `ui-events` is a mod built since `ui`'s; older mods have no export
@@ -651,7 +691,7 @@ impl Mods {
                 .horizon_mods_events()
                 .call_init(&mut store)
                 .map_err(|e| reason(&e))??;
-            (Hooks::Client(exports, r), ui)
+            (Hooks::Client(exports, r), ui, None)
         };
         let free = |c: &str| {
             let free = !reserved(c) && !taken.iter().any(|t| t == c);
@@ -681,6 +721,7 @@ impl Mods {
         Ok(Some(Running {
             store,
             ui,
+            items,
             hooks,
             raycasts: functions.iter().any(|f| f == "game.raycast"),
             reads_recipes: functions.iter().any(|f| f.starts_with("recipes.")),
@@ -894,6 +935,45 @@ impl Mods {
             |h| h.blocks,
             |m, s| m.call_block_placed(s, player, pos, state),
         );
+    }
+    /// `player` used `item` from `hand`, on `target` or in the air: the
+    /// server mods that hear `item` are told.
+    pub fn item_used(
+        &mut self,
+        player: &ServerPlayer,
+        hand: ItemHand,
+        item: &str,
+        target: Option<ItemBlockHit>,
+    ) {
+        for i in 0..self.entries.len() {
+            let hears = self.entries[i]
+                .run
+                .as_ref()
+                .and_then(|r| r.items.as_ref())
+                .is_some_and(|(_, ids)| ids.binary_search_by(|id| id.as_str().cmp(item)).is_ok());
+            if hears {
+                self.call(i, FUEL_EVENT, |run| {
+                    let (host, _) = run.items.as_ref().expect("checked above");
+                    host.horizon_mods_server_item_events().call_item_used(
+                        &mut run.store,
+                        player,
+                        hand,
+                        item,
+                        target,
+                    )
+                });
+            }
+        }
+    }
+    /// Whether a running server mod hears `item` used: the server skips
+    /// collecting uses nobody hears.
+    pub fn hears_item(&self, item: &str) -> bool {
+        self.entries.iter().any(|e| {
+            e.run
+                .as_ref()
+                .and_then(|r| r.items.as_ref())
+                .is_some_and(|(_, ids)| ids.binary_search_by(|id| id.as_str().cmp(item)).is_ok())
+        })
     }
     /// The commands running server mods own and their arguments, for the
     /// server's command tree.

@@ -15,10 +15,10 @@ the player before the mod is turned on, and checked against the component's real
 | --- | --- |
 | Interfaces the game offers | 6: `log`, `game`, `chat`, `hud`, `storage`; `players` for server mods |
 | Functions in them | 12 |
-| Hooks a mod exports | 5: `init`, `tick`, `frame`, `command`, `chat`; a server mod 8: `init`, `tick`, `player-joined`, `player-left`, `chat`, `command`, `block-broken`, `block-placed` |
+| Hooks a mod exports | 5: `init`, `tick`, `frame`, `command`, `chat`; a server mod 10: `init`, `tick`, `player-joined`, `player-left`, `chat`, `command`, `block-broken`, `block-placed`; `items`, `item-used` (`server-item-events`) |
 | Capabilities | 6: `game-read`, `chat`, `hud`, `storage`, `registries`, `players` |
 | Manifest `api` lines served | 3: `0.1` (code), `0.2` (content), `0.3` (server mods, experimental) |
-| SDK | the `Mod` trait (5 methods), `Registration` (4 builders), `export_mod!`, log helpers; `server::ServerMod` (8 methods), `server::Registration` (6 builders), `server::Argument`, `server::Args`, `export_server_mod!` |
+| SDK | the `Mod` trait (5 methods), `Registration` (4 builders), `export_mod!`, log helpers; `server::ServerMod` (10 methods), `server::Registration` (6 builders), `server::Argument`, `server::Args`, `export_server_mod!` |
 | `cargo horizon-mod` | `new` (templates `code` and `content`), `build`, `run`, `test`, `check` |
 | Example mods | `coords-hud` (code), `ruby-content` (content), `welcome` (server) |
 
@@ -106,6 +106,10 @@ What real mods need next, in the order modpacks and servers need it:
 
 ## Changelog
 
+- API 0.3: `server-item-events` (`items`, `item-used`): a server mod hears players right-click with the items it
+  names, on a block's face or in the air; a second export, so earlier server mods still load. SDK
+  `ServerMod::items`, `ServerMod::item_used`; test scripts' `use`; `beacons` lights a pillar where a blaze rod is
+  used.
 - API 0.3: typed server commands: `registration.commands` lists each command's arguments (`argument-kind`: word,
   text, integer, number, boolean, player, block-pos), sent in players' command trees and parsed by the server;
   `command` gets their values. SDK `Registration::command_with`, `Argument`, `Args`.

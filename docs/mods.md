@@ -491,6 +491,19 @@ its component targets the WIT world `horizon-server-mod` instead of
 | `command(player, name, args, values)` | `/name args` typed by a player, for a command it registered, with its arguments' values (below); `ok(some)` is that player's feedback, `err` their red error |
 | `block-broken(player, pos, state)`, `block-placed(player, pos, state)` | `registration.blocks`, with the state as `minecraft:oak_log[axis=y]` |
 
+| Hook (export `server-item-events`) | When |
+|---|---|
+| `items() -> list<string>` | once, after `init`: the item ids whose uses it hears, at most 64 (none: it hears none) |
+| `item-used(player, hand, item, target)` | a player right-clicks with one of those items: `target` is the block and face clicked (`block-hit`), none in the air; once per hand the click tried, after the game used the item as usual |
+
+`server-item-events` is a second export (world `horizon-server-items-mod`), so
+server mods built before it still load and hear no item uses; the SDK exports it
+for every server mod (`ServerMod::items`, `ServerMod::item_used`, empty by
+default). With a content mod's items, a server mod gives them behaviour: a wand
+that builds, a tool that copies a structure. Test scripts click with `use = {
+item = "minecraft:blaze_rod", x = 0, y = 63, z = 0, face = "up" }` (no position:
+in the air).
+
 Capabilities that act on a local player (`game-read`, `chat`, `hud`) are for
 client mods; `players` is for server mods. In Rust: `impl
 horizon_mod_sdk::server::ServerMod` and `export_server_mod!`; the example is

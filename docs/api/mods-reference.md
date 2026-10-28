@@ -34,6 +34,20 @@ A server mod (manifest `side = "server"`, `api = "0.3"`, experimental): runs whe
 - Imports (what the game offers): `log`, `storage`, `players`, `world`
 - Exports (what the mod provides): `server-events`
 
+## World `horizon-server-items-mod`
+
+A server mod that hears item uses: the SDK builds every server mod against this world. Mods built for `horizon-server-mod` alone still load.
+
+- Imports (what the game offers): `log`, `storage`, `players`, `world`
+- Exports (what the mod provides): `server-item-events`, `server-events`
+
+## World `server-items-host`
+
+The game's side of `horizon-server-items-mod` beyond `horizon-server-mod`.
+
+- Imports (what the game offers): `players`
+- Exports (what the mod provides): `server-item-events`
+
 ## World `horizon-ui-mod`
 
 A mod with widgets (capability `ui`): the SDK builds every mod against this world. Mods built for `horizon-mod` alone (no `ui-events` export) still load and simply hear nothing of their widgets.
@@ -768,3 +782,49 @@ An argument's value, parsed as its kind says.
 | `command` | `func(player: player, name: string, args: string, values: list<tuple<string, argument-value>>) -> result<option<string>, string>` | `/name args` typed by `player`: ok(some(text)) is their feedback, err(text) their error in red. `values` holds each argument given, by name, in order (an optional one left out isn't there); a line that doesn't parse never reaches the mod: the player gets vanilla's error. |
 | `block-broken` | `func(player: player, pos: block-pos, state: string)` | A player broke the block at `pos` in their dimension: `state` is what was there, as `minecraft:oak_log[axis=y]`. |
 | `block-placed` | `func(player: player, pos: block-pos, state: string)` | A player placed `state` at `pos` in their dimension. |
+
+## `server-item-events`
+
+Access: exported by the mod: the game calls it.
+
+What the server calls in a server mod when a player uses one of the items it names (manifest `api = "0.3"`, experimental): a second export, so server mods built before it still load and simply hear no item uses.
+
+### type `player`
+
+`type player = player`
+
+### enum `hand`
+
+| Case | |
+| --- | --- |
+| `main` |  |
+| `off` |  |
+
+### enum `face`
+
+The face of a block, as vanilla's `Direction`.
+
+| Case | |
+| --- | --- |
+| `down` |  |
+| `up` |  |
+| `north` |  |
+| `south` |  |
+| `west` |  |
+| `east` |  |
+
+### record `block-hit`
+
+The block a use clicked, and its face.
+
+| Field | Type | |
+| --- | --- | --- |
+| `x` | `s32` |  |
+| `y` | `s32` |  |
+| `z` | `s32` |  |
+| `face` | `face` |  |
+
+| Function | Signature | What it does |
+| --- | --- | --- |
+| `items` | `func() -> list<string>` | Once, after `server-events.init`: the item ids (`minecraft:stick`, `<mod>:<path>`) whose uses the mod hears, at most 64. None: it hears none, and `item-used` is never called. |
+| `item-used` | `func(player: player, hand: hand, item: string, target: option<block-hit>)` | `player` used `item` from `hand` on `target`, a block face, or in the air (none): a right click, as the server got it (one per hand the click tried). The game has used the item as usual by then; the mod reacts, through capability `world` for instance. |

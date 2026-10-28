@@ -4149,6 +4149,9 @@ impl Game<'_> {
             if entity && hand == Hand::Off && self.with_hand(hand, Game::interact_entity)? {
                 return Ok(Some(hand));
             }
+            // Server mods that hear the held item are told of the click
+            // (`server-item-events`), whatever the item then does.
+            self.mod_item_used(hand, block_hit.as_ref().map(|h| (h.pos, h.face)));
             if self.with_hand(hand, |game| game.use_hand(block_hit.as_ref()))? {
                 return Ok(Some(hand));
             }
