@@ -8,8 +8,8 @@
 //! test written in TOML, `tests/<name>.toml` in the mod's folder: steps, each
 //! saying what happens and what the mod must have shown by then.
 use crate::{
-    BlockPos, Clock, Corner, GameMode, ItemBlockHit, ItemFace, ItemHand, Mods, Output, Panel, Player,
-    ServerPlayer, Snapshot, Status,
+    BlockPos, Clock, Corner, GameMode, ItemBlockHit, ItemFace, ItemHand, Mods, Output, Panel,
+    Player, ServerPlayer, Snapshot, Status,
 };
 use serde::Deserialize;
 use std::{
@@ -399,7 +399,11 @@ impl UseSet {
             Some("south") => ItemFace::South,
             Some("west") => ItemFace::West,
             Some("east") => ItemFace::East,
-            Some(other) => return Err(format!("face {other:?}: down, up, north, south, west or east")),
+            Some(other) => {
+                return Err(format!(
+                    "face {other:?}: down, up, north, south, west or east"
+                ));
+            }
         };
         Ok(Some(ItemBlockHit { x, y, z, face }))
     }
@@ -610,7 +614,8 @@ impl Step {
             || self.chat.is_some()
             || self.command.is_some()
             || self.broken.is_some()
-            || self.place.is_some();
+            || self.place.is_some()
+            || self.used.is_some();
         let actor = if server && acts {
             Some(actor(game)?)
         } else {

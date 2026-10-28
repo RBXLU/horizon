@@ -672,10 +672,7 @@ impl Mods {
                     ids.sort();
                     ids.dedup();
                     if ids.len() > ITEMS_HEARD {
-                        return Err(format!(
-                            "hears {} items: at most {ITEMS_HEARD}",
-                            ids.len()
-                        ));
+                        return Err(format!("hears {} items: at most {ITEMS_HEARD}", ids.len()));
                     }
                     (!ids.is_empty()).then_some((host, ids))
                 }
